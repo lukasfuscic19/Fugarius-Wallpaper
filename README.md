@@ -1,81 +1,142 @@
 # Fugarius Wallpaper
 
-Multi-monitor panorama wallpaper tool for **Linux (Wayland)** — one source image, per-monitor crop with zoom/offset/rotation, aligned across bezels and uneven layouts (e.g. ultrawide + stacked displays).
+Multi-monitor **panorama** wallpaper tool for **Linux Wayland**. One source image is placed on a virtual desktop (all monitors combined); each screen shows the matching viewport. Zoom, offset, and rotation are **shared** across monitors.
+
+**Primary target:** [KDE Plasma](https://kde.org/plasma-desktop/) (Wayland). Optional: `swww` / `awww` on other compositors.
 
 Repository: [github.com/lukasfuscic19/Fugarius-Wallpaper](https://github.com/lukasfuscic19/Fugarius-Wallpaper)
 
+## Supported platforms
+
+| Environment | Apply wallpapers | Detect layout | Notes |
+|-------------|------------------|---------------|--------|
+| **KDE Plasma (Wayland)** | Native (D-Bus + config fallback) | `kscreen-doctor`, `kwinoutputconfig.json` | **Recommended** — full feature set |
+| Hyprland / Sway / etc. | `swww` or `awww` | `swww query` / `awww query` | Export + manual output names |
+| GNOME, X11-only, macOS, Windows | — | — | **Not supported** (no port planned here) |
+
+There is **no hardcoded monitor layout** (no fixed resolution lists or output-name swaps). Any count and arrangement is driven by detected geometry and KWin/Plasma screen mapping.
+
 ## Features
 
-- Single source image → separate wallpaper per monitor
-- Per-monitor: zoom, X/Y offset, rotation, geometry, Wayland output name
-- Auto-detect layout via `swww` / `awww` query, or KDE `kscreen-doctor`
-- **Auto-fit** modes: `fill`, `fit`, `stretch`
-- Live layout preview in the app
-- **Apply to desktop** — push wallpapers directly through `swww` / `awww` (no export loop)
-- **Live apply** — update real monitors when you release a slider
-- Save/load profiles (JSON)
-- Optional export: PNG per monitor + `apply_wallpaper.sh` + `manifest.json`
-- Built-in image file picker (fixed window size; avoids KDE dialog resize issues)
+- Single source image → one panorama → per-monitor PNG crops
+- **Shared transform:** zoom, X/Y offset, rotation (pan/zoom moves the same image on all screens)
+- **Auto-detect layout** via `kscreen-doctor -j`, with fallbacks (`kscreen-doctor -o`, `swww`/`awww query`)
+- **Plasma screen mapping** from monitor positions (`kwinoutputconfig.json` + kscreen), reconciled with Plasma desktop IDs
+- **Auto-fit:** `fill` (default), `fit`, `stretch` — image center aligned to the **center of the virtual desktop** bounding box (1:1 VD↔image pixel mapping after scale)
+- Live layout preview — click monitor, drag to pan, wheel to zoom, arrow keys to nudge
+- **Apply to desktop** — Plasma per screen, or `swww` / `awww`
+- **Live apply** (optional)
+- Save/load profiles (JSON); old per-monitor offsets are normalized to a shared transform on load
+- Export: PNG per monitor + `apply_wallpaper.sh` + `manifest.json`
+- Image picker with folder tree and thumbnail preview
 
-## Requirements
+## Requirements (KDE Plasma)
 
-| Component | Notes |
-|-----------|--------|
-| Python 3.10+ | Tested on Nobara / Fedora |
-| [Pillow](https://pypi.org/project/pillow/) | `pip install -r requirements.txt` |
-| `python3-tkinter` | System package (GUI) |
-| `swww` | Recommended for **Apply to desktop** on Wayland |
+| Component | Purpose |
+|-----------|---------|
+| Python 3.10+ | Runtime |
+| [Pillow](https://pypi.org/project/pillow/) | Image processing (`requirements.txt`) |
+| `python3-tkinter` | GUI |
+| `kscreen-doctor` | Monitor layout (package `kscreen`) |
+| `qdbus` or `qdbus-qt6` + `qt6-dbus` | Plasma wallpaper via D-Bus |
+| Active **Plasma Wayland session** | D-Bus bus, `plasmashell` |
 
-### Fedora / Nobara
+Optional for non-KDE: `swww` (or `awww`).
 
-```bash
-sudo dnf install python3 python3-tkinter swww
-```
-
-## Install & run
+## Quick start
 
 ```bash
 git clone https://github.com/lukasfuscic19/Fugarius-Wallpaper.git
 cd Fugarius-Wallpaper
-
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
+./install.sh
 ./run.sh
 ```
 
-Or without the launcher:
+Run from **Konsole** (or another terminal in your graphical KDE session), not from an isolated IDE terminal — session D-Bus must be available.
+
+### Optional: application menu entry
 
 ```bash
-source .venv/bin/activate
-python app.py
+./packaging/install-desktop.sh   # after ./install.sh
+```
+
+### Optional: AppImage
+
+```bash
+chmod +x packaging/build-appimage.sh
+./packaging/build-appimage.sh
+# If appimagetool is installed:
+./build/Fugarius-Wallpaper-x86_64.AppImage
+```
+
+The AppImage bundles Pillow in a venv; **tkinter**, **qdbus**, and **kscreen-doctor** still come from the host system (same constraints as `./run.sh`). See [packaging/build-appimage.sh](packaging/build-appimage.sh).
+
+### Manual packages
+
+**Fedora / Nobara:**
+
+```bash
+sudo dnf install python3 python3-pip python3-tkinter kscreen qt6-dbus
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+./run.sh
+```
+
+**Debian / Ubuntu:**
+
+```bash
+sudo apt install python3 python3-pip python3-tk python3-venv kscreen
+# qdbus from qtchooser / qt6 tools as available on your release
 ```
 
 ## Typical workflow
 
-1. **Open source image** — use a high-resolution file (at least as wide as your virtual desktop).
-2. **Re-detect monitors** if outputs are missing.
-3. Choose **fill** (default) → **Auto-fit**.
-4. **Apply to desktop** — check alignment on real monitors.
-5. Enable **Live apply** and fine-tune offsets/rotation per monitor.
-6. **Save profile** when happy; **Export wallpapers** only if you need files on disk.
+1. **Open source image** — use enough resolution for your combined desktop size.
+2. **Re-detect monitors** after changing layout or if outputs are missing.
+3. **Auto-fit** (`fill` is default; re-run after each new image).
+4. Fine-tune with **shared** offset/zoom (preview or sliders).
+5. **Apply to desktop** — verify on real monitors.
+6. **Save profile** when satisfied.
 
-## Wayland / KDE notes
+## How the panorama works
 
-- Start `swww-daemon` once per session, or let the app start it.
-- In **KDE Plasma**: disable automatic/slideshow wallpaper in *System Settings → Wallpaper*, or Plasma may draw over `swww`.
-- Apply cache: `~/.cache/fugarius-wallpaper/`
-- Missing output names? **Re-detect monitors** or run `swww query` and fill **Wayland output name** for each display.
+1. All monitors form one rectangle: min/max of `pos_x`, `pos_y`, `width`, `height`.
+2. Auto-fit picks one **zoom** (and `stretch` resizes to that rectangle).
+3. Image **center** = virtual desktop **center**; offsets pan the whole panorama.
+4. Each monitor crops the region that matches its rectangle on that plane (black where the image does not reach, e.g. in `fit` mode).
+
+## KDE Plasma apply
+
+- Uses `org.kde.image` with fill mode **Scaled and cropped** (`FillMode=2`) so panels are not covered.
+- Crops: `~/.cache/fugarius-wallpaper/` (timestamped); copies in `~/Pictures/FugariusWallpaper/`.
+- Use wallpaper type **Image** in Plasma settings (not Slideshow) if something reverts.
+- Screen assignment uses **positions** from kscreen + `~/.config/kwinoutputconfig.json`, not output-name guesses.
+
+### Panels hidden or apply failed?
+
+```bash
+./restore_panels.sh
+# optional: ./restore_panels.sh 'file:///path/to/previous/wallpaper.png'
+```
+
+Then `./run.sh` → **Re-detect monitors** → **Apply** again.
+
+## Other compositors (`swww` / `awww`)
+
+- Install and start `swww-daemon` (or `awww-daemon`).
+- Fill **Wayland output name** per monitor (`swww query` or **Re-detect monitors**).
+- **Apply to desktop** or use exported `apply_wallpaper.sh`.
 
 ## Project layout
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `app.py` | Main GUI application |
-| `run.sh` | Venv + launch with Wayland env |
-| `verify_panorama.py` | CLI check that crops match virtual desktop geometry |
-| `requirements.txt` | Python dependencies |
+| `app.py` | Main GUI and rendering |
+| `install.sh` | System deps + Python venv |
+| `run.sh` | Launch with session env (D-Bus, Wayland) |
+| `restore_panels.sh` | Fix Plasma fill mode / panels |
+| `verify_panorama.py` | CLI alignment check |
+| `packaging/` | `.desktop`, AppImage build, menu install |
+| `requirements.txt` | Pillow |
 
 ## Verify alignment (optional)
 
@@ -84,7 +145,14 @@ source .venv/bin/activate
 python verify_panorama.py
 ```
 
-Prints `OK` when test crops match the detected monitor layout; writes samples to `_verify_out/` (gitignored).
+Expect `OK` when synthetic crops match the detected layout; samples in `_verify_out/` (gitignored).
+
+## For porters and other setups
+
+- **Adjust Plasma mapping:** `assign_plasma_screen_ids()` / `_match_profiles_to_plasma_screens()` in `app.py` — requires `kwinoutputconfig.json` and D-Bus desktop list.
+- **Adjust detection:** `detect_monitors()` — prefer `kscreen-doctor -j`.
+- **New compositor:** implement in `resolve_wallpaper_backend()` and `apply_wallpaper_images()`.
+- **AppImage / Flatpak:** bundle app + venv; declare host deps (`tkinter`, KDE tools) or ship a Plasma-only wrapper. This repo ships a minimal AppImage build script, not a full Flatpak manifest.
 
 ## License
 

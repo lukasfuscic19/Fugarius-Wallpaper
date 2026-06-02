@@ -8,26 +8,11 @@ from pathlib import Path
 
 from PIL import Image
 
-from app import MonitorProfile, auto_fit_zoom, detect_monitors, render_monitor_image
+from app import MonitorProfile, autofit_transform, detect_monitors, render_monitor_image
 
 
 def apply_autofit(source: Image.Image, profiles: list[MonitorProfile], mode: str = "fill") -> None:
-    zoom = auto_fit_zoom(source, profiles, mode)
-    min_x = min(p.pos_x for p in profiles)
-    min_y = min(p.pos_y for p in profiles)
-    img_w = source.width * zoom
-    img_h = source.height * zoom
-    total_w = max(p.pos_x + p.width for p in profiles) - min_x
-    total_h = max(p.pos_y + p.height for p in profiles) - min_y
-    scale_x = img_w / total_w if total_w else 1.0
-    scale_y = img_h / total_h if total_h else 1.0
-    for p in profiles:
-        p.zoom = zoom
-        p.rotation = 0.0
-        mon_cx = (p.pos_x - min_x) + p.width / 2
-        mon_cy = (p.pos_y - min_y) + p.height / 2
-        p.offset_x = int(mon_cx * scale_x - img_w / 2)
-        p.offset_y = int(mon_cy * scale_y - img_h / 2)
+    autofit_transform(source, profiles, mode)
 
 
 def main() -> int:
@@ -55,7 +40,7 @@ def main() -> int:
 
     errors = 0
     for p in profiles:
-        rendered = render_monitor_image(source, p)
+        rendered = render_monitor_image(source, p, profiles, "fill")
         out_path = out_dir / f"{p.name}.png"
         rendered.save(out_path)
         vx0 = p.pos_x - min_x

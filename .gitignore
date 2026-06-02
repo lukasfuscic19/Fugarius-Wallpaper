@@ -11,6 +11,10 @@ build/
 
 # Local test / cache output
 _verify_out/
+build/
+
+# AppImage / packaging artifacts
+*.AppImage
 
 # Editor / OS
 .idea/
