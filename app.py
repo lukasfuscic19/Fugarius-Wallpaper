@@ -1445,9 +1445,9 @@ def render_monitor_image(
 ) -> Image.Image:
     """Crop one monitor's view from a single panorama on the virtual desktop.
 
-    Zoom, rotation, and offset are shared (read from profile); each monitor only
-    differs by its rectangle on the virtual desktop. VD coords map 1:1 to image
-    pixels after scaling; image center aligns with the VD bounding-box center.
+    Each profile has its own zoom, rotation, and offset (fine-tune per monitor).
+    VD coords map 1:1 to image pixels after scaling; offset shifts that monitor's
+    viewport on the shared plane (auto-fit starts from a common baseline).
     """
     if profiles is None:
         profiles = [profile]
@@ -1522,10 +1522,9 @@ def autofit_transform(
     profiles: list[MonitorProfile],
     mode: str = "fill",
 ) -> float:
-    """Place one image on the virtual desktop: centers aligned, shared zoom/offset.
+    """Baseline for all monitors: same zoom, zero offset, centered on virtual desktop.
 
-    Monitors are not positioned separately — each later shows the crop for its
-    rectangle on that shared panorama (see render_monitor_image).
+    Adjust zoom/rotation/offset per monitor afterward in the UI.
     """
     if not profiles:
         return 1.0
@@ -1538,18 +1537,6 @@ def autofit_transform(
     return zoom
 
 
-def sync_panorama_transform(profiles: list[MonitorProfile]) -> None:
-    """Keep zoom/rotation/offset identical on every profile (one shared image)."""
-    if not profiles:
-        return
-    lead = profiles[0]
-    for p in profiles:
-        p.zoom = lead.zoom
-        p.rotation = lead.rotation
-        p.offset_x = lead.offset_x
-        p.offset_y = lead.offset_y
-
-
 # ──────────────────────────────────────────────
 # Main App
 # ──────────────────────────────────────────────
@@ -1558,7 +1545,7 @@ class WallpaperPanoramaApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Fugarius Wallpaper")
-        self.root.geometry("1450x880")
+        self.root.geometry("1520x1020")
         self.source_path:  Path | None  = None
         self.source_image: Image.Image | None = None
         self.profiles:     list[MonitorProfile] = []
@@ -1607,7 +1594,6 @@ class WallpaperPanoramaApp:
         profiles = detect_monitors()
         if profiles:
             self.profiles = profiles
-            sync_panorama_transform(self.profiles)
             assign_plasma_screen_ids(self.profiles)
             outputs = query_outputs()
             for i, p in enumerate(self.profiles):
@@ -1630,10 +1616,46 @@ class WallpaperPanoramaApp:
         outer = ttk.Frame(self.root, padding=10)
         outer.pack(fill=tk.BOTH, expand=True)
 
-        # Fixed-width sidebar — prevents buttons/labels resizing when values change.
-        left = ttk.Frame(outer, width=300)
-        left.pack(side=tk.LEFT, fill=tk.Y)
-        left.pack_propagate(False)
+        # Sidebar: scrollable controls + status bar always visible at the bottom.
+        left_outer = ttk.Frame(outer, width=300)
+        left_outer.pack(side=tk.LEFT, fill=tk.Y)
+        left_outer.pack_propagate(False)
+
+        self._left_canvas = tk.Canvas(left_outer, width=300, highlightthickness=0, borderwidth=0)
+        left_scroll = ttk.Scrollbar(left_outer, orient=tk.VERTICAL, command=self._left_canvas.yview)
+        left = ttk.Frame(self._left_canvas)
+        self._left_canvas_window = self._left_canvas.create_window((0, 0), window=left, anchor=tk.NW, width=300)
+
+        def _sync_left_scroll(_event: tk.Event | None = None) -> None:
+            self._left_canvas.configure(scrollregion=self._left_canvas.bbox("all"))
+
+        left.bind("<Configure>", _sync_left_scroll)
+        self._left_canvas.configure(yscrollcommand=left_scroll.set)
+        self._left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        left_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def _left_mousewheel(event: tk.Event) -> None:
+            if event.delta:
+                self._left_canvas.yview_scroll(int(-event.delta / 120), "units")
+            elif getattr(event, "num", None) == 4:
+                self._left_canvas.yview_scroll(-1, "units")
+            elif getattr(event, "num", None) == 5:
+                self._left_canvas.yview_scroll(1, "units")
+
+        for w in (self._left_canvas, left):
+            w.bind("<MouseWheel>", _left_mousewheel)
+            w.bind("<Button-4>", _left_mousewheel)
+            w.bind("<Button-5>", _left_mousewheel)
+
+        status_frame = ttk.Frame(left_outer)
+        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        self.status_var = tk.StringVar(value="Detecting monitors…")
+        ttk.Label(
+            status_frame,
+            textvariable=self.status_var,
+            wraplength=280,
+            justify=tk.LEFT,
+        ).pack(fill=tk.X, padx=4, pady=8)
 
         right = ttk.Frame(outer)
         right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -1694,7 +1716,7 @@ class WallpaperPanoramaApp:
         self.monitor_combo.pack(fill=tk.X, pady=(0, 10))
         self.monitor_combo.bind("<<ComboboxSelected>>", self.on_monitor_selected)
 
-        controls = ttk.LabelFrame(left, text="Transform (all monitors)"); controls.pack(fill=tk.X, pady=6)
+        controls = ttk.LabelFrame(left, text="Transform (selected monitor)"); controls.pack(fill=tk.X, pady=6)
         self.zoom_var     = tk.DoubleVar(value=1.0)
         self.rotation_var = tk.DoubleVar(value=0.0)
         self.offset_x_var = tk.IntVar(value=0)
@@ -1723,11 +1745,6 @@ class WallpaperPanoramaApp:
 
         ttk.Button(left, text="Add monitor",    command=self.add_monitor).pack(fill=tk.X, pady=(12, 2))
         ttk.Button(left, text="Remove monitor", command=self.remove_monitor).pack(fill=tk.X, pady=2)
-
-        self.status_var = tk.StringVar(value="Detecting monitors…")
-        ttk.Label(left, textvariable=self.status_var, wraplength=280, justify=tk.LEFT).pack(
-            fill=tk.X, side=tk.BOTTOM, pady=(14, 0)
-        )
 
         self.preview_canvas = tk.Canvas(right, bg="#1E1E1E", highlightthickness=0, cursor="arrow")
         self.preview_canvas.pack(fill=tk.BOTH, expand=True)
@@ -1888,7 +1905,6 @@ class WallpaperPanoramaApp:
         if not path:
             return
         self.profiles = [MonitorProfile(**item) for item in json.loads(Path(path).read_text(encoding="utf-8"))]
-        sync_panorama_transform(self.profiles)
         self.current_index = 0
         self._refresh_monitor_list()
         self._load_profile_into_controls()
@@ -1971,39 +1987,17 @@ class WallpaperPanoramaApp:
             return 5
         return 1
 
-    def _set_panorama_transform(
-        self,
-        *,
-        zoom: float | None = None,
-        rotation: float | None = None,
-        offset_x: int | None = None,
-        offset_y: int | None = None,
-    ) -> None:
-        if not self.profiles:
-            return
-        lead = self.profiles[0]
-        z = lead.zoom if zoom is None else zoom
-        r = lead.rotation if rotation is None else rotation
-        ox = lead.offset_x if offset_x is None else offset_x
-        oy = lead.offset_y if offset_y is None else offset_y
-        for p in self.profiles:
-            p.zoom = z
-            p.rotation = r
-            p.offset_x = ox
-            p.offset_y = oy
-
     def _arrow_nudge(self, keysym: str, step: int) -> None:
         self.apply_controls()
-        ox, oy = self.profiles[0].offset_x, self.profiles[0].offset_y
+        p = self.profiles[self.current_index]
         if keysym == "Left":
-            ox += step
+            p.offset_x += step
         elif keysym == "Right":
-            ox -= step
+            p.offset_x -= step
         elif keysym == "Up":
-            oy += step
+            p.offset_y += step
         elif keysym == "Down":
-            oy -= step
-        self._set_panorama_transform(offset_x=ox, offset_y=oy)
+            p.offset_y -= step
         self._sync_controls_from_profile()
         self._invalidate_preview()
         self._schedule_preview_update()
@@ -2070,8 +2064,8 @@ class WallpaperPanoramaApp:
         if idx is None:
             return
         self._select_monitor(idx)
-        lead = self.profiles[0]
-        self._preview_drag = (event.x, event.y, lead.offset_x, lead.offset_y, idx)
+        p = self.profiles[idx]
+        self._preview_drag = (event.x, event.y, p.offset_x, p.offset_y, idx)
 
     def _on_preview_drag(self, event: tk.Event) -> None:
         if not self._preview_drag or not self.source_image:
@@ -2080,10 +2074,8 @@ class WallpaperPanoramaApp:
         layout_scale = max(self._preview_layout.get("scale", 1.0), 0.05)
         p = self.profiles[idx]
         sens = layout_scale / max(p.zoom, 0.1)
-        self._set_panorama_transform(
-            offset_x=ox - int((event.x - sx) / sens),
-            offset_y=oy - int((event.y - sy) / sens),
-        )
+        p.offset_x = ox - int((event.x - sx) / sens)
+        p.offset_y = oy - int((event.y - sy) / sens)
         self._sync_controls_from_profile()
         if self._drag_preview_after:
             try:
@@ -2134,8 +2126,8 @@ class WallpaperPanoramaApp:
             delta = step
         else:
             delta = -step
-        z = max(0.1, min(5.0, round(self.profiles[0].zoom + delta, 3)))
-        self._set_panorama_transform(zoom=z)
+        p = self.profiles[self.current_index]
+        p.zoom = max(0.1, min(5.0, round(p.zoom + delta, 3)))
         self._sync_controls_from_profile()
         self._invalidate_preview()
         self._schedule_preview_update()
@@ -2144,13 +2136,11 @@ class WallpaperPanoramaApp:
     def apply_controls(self) -> None:
         if not self.profiles:
             return
-        self._set_panorama_transform(
-            zoom=float(self.zoom_var.get()),
-            rotation=float(self.rotation_var.get()),
-            offset_x=int(self.offset_x_var.get()),
-            offset_y=int(self.offset_y_var.get()),
-        )
         p = self.profiles[self.current_index]
+        p.zoom = float(self.zoom_var.get())
+        p.rotation = float(self.rotation_var.get())
+        p.offset_x = int(self.offset_x_var.get())
+        p.offset_y = int(self.offset_y_var.get())
         p.width, p.height = int(self.width_var.get()), int(self.height_var.get())
         p.pos_x, p.pos_y = int(self.pos_x_var.get()), int(self.pos_y_var.get())
         p.output_name = self.output_var.get().strip()
@@ -2168,13 +2158,11 @@ class WallpaperPanoramaApp:
     def apply_controls_without_loop(self) -> None:
         if not self.profiles:
             return
-        self._set_panorama_transform(
-            zoom=float(self.zoom_var.get()),
-            rotation=float(self.rotation_var.get()),
-            offset_x=int(self.offset_x_var.get()),
-            offset_y=int(self.offset_y_var.get()),
-        )
         p = self.profiles[self.current_index]
+        p.zoom = float(self.zoom_var.get())
+        p.rotation = float(self.rotation_var.get())
+        p.offset_x = int(self.offset_x_var.get())
+        p.offset_y = int(self.offset_y_var.get())
         p.width, p.height = int(self.width_var.get()), int(self.height_var.get())
         p.pos_x, p.pos_y = int(self.pos_x_var.get()), int(self.pos_y_var.get())
         p.output_name = self.output_var.get().strip()
@@ -2193,13 +2181,12 @@ class WallpaperPanoramaApp:
         if not self.profiles:
             return
         p = self.profiles[self.current_index]
-        lead = self.profiles[0]
         self._ui_busy = True
         try:
-            self.zoom_var.set(lead.zoom)
-            self.rotation_var.set(lead.rotation)
-            self.offset_x_var.set(lead.offset_x)
-            self.offset_y_var.set(lead.offset_y)
+            self.zoom_var.set(p.zoom)
+            self.rotation_var.set(p.rotation)
+            self.offset_x_var.set(p.offset_x)
+            self.offset_y_var.set(p.offset_y)
             self.width_var.set(p.width)
             self.height_var.set(p.height)
             self.pos_x_var.set(p.pos_x)
@@ -2217,7 +2204,6 @@ class WallpaperPanoramaApp:
             self._ui_busy = False
 
     def _load_profile_into_controls(self) -> None:
-        sync_panorama_transform(self.profiles)
         self._sync_controls_from_profile()
 
     def _invalidate_preview(self) -> None:
@@ -2228,18 +2214,20 @@ class WallpaperPanoramaApp:
         ch = max(self.preview_canvas.winfo_height(), 1)
         if not self.source_image or not self.profiles:
             return (cw, ch, 0, ())
-        lead = self.profiles[0]
-        geom = tuple((p.width, p.height, p.pos_x, p.pos_y) for p in self.profiles)
-        return (
-            cw,
-            ch,
-            self.current_index,
-            lead.zoom,
-            lead.rotation,
-            lead.offset_x,
-            lead.offset_y,
-            geom,
+        state = tuple(
+            (
+                p.zoom,
+                p.rotation,
+                p.offset_x,
+                p.offset_y,
+                p.width,
+                p.height,
+                p.pos_x,
+                p.pos_y,
+            )
+            for p in self.profiles
         )
+        return (cw, ch, self.current_index, state)
 
     def _cancel_preview_timer(self) -> None:
         if self._preview_after:
@@ -2556,7 +2544,7 @@ class WallpaperPanoramaApp:
 def main() -> None:
     root = tk.Tk()
     app = WallpaperPanoramaApp(root)
-    root.minsize(1100, 700)
+    root.minsize(1280, 960)
     root.mainloop()
 
 

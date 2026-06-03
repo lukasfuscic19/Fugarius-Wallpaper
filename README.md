@@ -1,6 +1,6 @@
 # Fugarius Wallpaper
 
-Multi-monitor **panorama** wallpaper tool for **Linux Wayland**. One source image is placed on a virtual desktop (all monitors combined); each screen shows the matching viewport. Zoom, offset, and rotation are **shared** across monitors.
+Multi-monitor **panorama** wallpaper tool for **Linux Wayland**. One source image is placed on a virtual desktop (all monitors combined); each screen shows the matching viewport with its own zoom, offset, and rotation.
 
 **Primary target:** [KDE Plasma](https://kde.org/plasma-desktop/) (Wayland). Optional: `swww` / `awww` on other compositors.
 
@@ -19,14 +19,14 @@ There is **no hardcoded monitor layout** (no fixed resolution lists or output-na
 ## Features
 
 - Single source image → one panorama → per-monitor PNG crops
-- **Shared transform:** zoom, X/Y offset, rotation (pan/zoom moves the same image on all screens)
+- **Per-monitor transform:** zoom, X/Y offset, rotation for the selected screen (auto-fit sets a common baseline, then fine-tune each)
 - **Auto-detect layout** via `kscreen-doctor -j`, with fallbacks (`kscreen-doctor -o`, `swww`/`awww query`)
 - **Plasma screen mapping** from monitor positions (`kwinoutputconfig.json` + kscreen), reconciled with Plasma desktop IDs
 - **Auto-fit:** `fill` (default), `fit`, `stretch` — image center aligned to the **center of the virtual desktop** bounding box (1:1 VD↔image pixel mapping after scale)
 - Live layout preview — click monitor, drag to pan, wheel to zoom, arrow keys to nudge
 - **Apply to desktop** — Plasma per screen, or `swww` / `awww`
 - **Live apply** (optional)
-- Save/load profiles (JSON); old per-monitor offsets are normalized to a shared transform on load
+- Save/load profiles (JSON) with per-monitor transform values
 - Export: PNG per monitor + `apply_wallpaper.sh` + `manifest.json`
 - Image picker with folder tree and thumbnail preview
 
@@ -54,9 +54,10 @@ cd Fugarius-Wallpaper
 
 Run from **Konsole** (or another terminal in your graphical KDE session), not from an isolated IDE terminal — session D-Bus must be available.
 
-### Optional: application menu entry
+### Optional: application menu entry + icon
 
 ```bash
+./packaging/generate-icons.sh    # optional if assets/icons already present
 ./packaging/install-desktop.sh   # after ./install.sh
 ```
 
@@ -93,7 +94,7 @@ sudo apt install python3 python3-pip python3-tk python3-venv kscreen
 1. **Open source image** — use enough resolution for your combined desktop size.
 2. **Re-detect monitors** after changing layout or if outputs are missing.
 3. **Auto-fit** (`fill` is default; re-run after each new image).
-4. Fine-tune with **shared** offset/zoom (preview or sliders).
+4. Fine-tune **per monitor** (select monitor, then sliders / preview drag / wheel).
 5. **Apply to desktop** — verify on real monitors.
 6. **Save profile** when satisfied.
 
@@ -101,7 +102,7 @@ sudo apt install python3 python3-pip python3-tk python3-venv kscreen
 
 1. All monitors form one rectangle: min/max of `pos_x`, `pos_y`, `width`, `height`.
 2. Auto-fit picks one **zoom** (and `stretch` resizes to that rectangle).
-3. Image **center** = virtual desktop **center**; offsets pan the whole panorama.
+3. Auto-fit aligns image **center** to virtual desktop **center**; per-monitor offsets/zoom fine-tune each viewport.
 4. Each monitor crops the region that matches its rectangle on that plane (black where the image does not reach, e.g. in `fit` mode).
 
 ## KDE Plasma apply
@@ -135,7 +136,9 @@ Then `./run.sh` → **Re-detect monitors** → **Apply** again.
 | `run.sh` | Launch with session env (D-Bus, Wayland) |
 | `restore_panels.sh` | Fix Plasma fill mode / panels |
 | `verify_panorama.py` | CLI alignment check |
-| `packaging/` | `.desktop`, AppImage build, menu install |
+| `assets/` | App icon (`icon-source.png`, Freedesktop hicolor tree) |
+| `packaging/` | `.desktop`, icons, AppImage build, menu install |
+| `CHANGELOG.md` | Release notes |
 | `requirements.txt` | Pillow |
 
 ## Verify alignment (optional)

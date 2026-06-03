@@ -49,9 +49,23 @@ exec ./run.sh
 EOF
 chmod +x "${APPDIR}/AppRun"
 
+if [[ -d "${ROOT}/assets/icons/hicolor" ]]; then
+  mkdir -p "${APPDIR}/usr/share/icons/hicolor"
+  cp -a "${ROOT}/assets/icons/hicolor/"* "${APPDIR}/usr/share/icons/hicolor/"
+fi
+
 cp "${ROOT}/packaging/fugarius-wallpaper.desktop" "${APPDIR}/fugarius-wallpaper.desktop"
 sed -i 's|Exec=.*|Exec=AppRun|' "${APPDIR}/fugarius-wallpaper.desktop"
 cp "${APPDIR}/fugarius-wallpaper.desktop" "${APPDIR}/usr/share/applications/"
+
+for size in 256 128 64; do
+  icon="${ROOT}/assets/icons/hicolor/${size}x${size}/apps/fugarius-wallpaper.png"
+  if [[ -f "${icon}" ]]; then
+    cp "${icon}" "${APPDIR}/fugarius-wallpaper.png"
+    cp "${icon}" "${APPDIR}/.DirIcon"
+    break
+  fi
+done
 
 if command -v appimagetool >/dev/null 2>&1; then
   echo "==> Building AppImage"
