@@ -61,16 +61,24 @@ Run from **Konsole** (or another terminal in your graphical KDE session), not fr
 ./packaging/install-desktop.sh   # after ./install.sh
 ```
 
-### Optional: AppImage
+### Fedora / Nobara RPM (KDE)
 
 ```bash
-chmod +x packaging/build-appimage.sh
-./packaging/build-appimage.sh
-# If appimagetool is installed:
-./build/Fugarius-Wallpaper-x86_64.AppImage
+./packaging/build-rpm.sh 0.2.0
+sudo dnf install dist/fugarius-wallpaper-0.2.0-*.noarch.rpm
 ```
 
-The AppImage bundles Pillow in a venv; **tkinter**, **qdbus**, and **kscreen-doctor** still come from the host system (same constraints as `./run.sh`). See [packaging/build-appimage.sh](packaging/build-appimage.sh).
+Installs `/usr/bin/fugarius-wallpaper`, desktop entry, icons, and AppStream metadata (`dnf search fugarius` / Discover).
+
+### AppImage
+
+```bash
+./packaging/build-release.sh 0.2.0   # RPM + AppImage → dist/
+chmod +x dist/Fugarius-Wallpaper-0.2.0-x86_64.AppImage
+./dist/Fugarius-Wallpaper-0.2.0-x86_64.AppImage
+```
+
+The AppImage bundles Pillow in a venv; **tkinter**, **qdbus**, and **kscreen-doctor** still come from the host system. See [packaging/build-appimage.sh](packaging/build-appimage.sh).
 
 ### Manual packages
 

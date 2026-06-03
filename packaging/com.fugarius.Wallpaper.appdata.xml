@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.fugarius.Wallpaper</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Fugarius Wallpaper</name>
+  <summary>Multi-monitor panorama wallpaper for KDE Plasma</summary>
+  <description>
+    <p>
+      Place one image across all monitors as a single virtual desktop panorama.
+      Per-monitor zoom, offset, and rotation; native apply on KDE Plasma Wayland
+      via D-Bus, with optional swww support on other compositors.
+    </p>
+  </description>
+  <launchable type="desktop-id">fugarius-wallpaper.desktop</launchable>
+  <url type="homepage">https://github.com/lukasfuscic19/Fugarius-Wallpaper</url>
+  <url type="bugtracker">https://github.com/lukasfuscic19/Fugarius-Wallpaper/issues</url>
+  <developer id="com.fugarius">
+    <name>Lukas Fuscic</name>
+  </developer>
+  <categories>
+    <category>Utility</category>
+    <category>Settings</category>
+  </categories>
+  <keywords>
+    <keyword>wallpaper</keyword>
+    <keyword>multi-monitor</keyword>
+    <keyword>panorama</keyword>
+    <keyword>KDE</keyword>
+    <keyword>Plasma</keyword>
+    <keyword>Wayland</keyword>
+  </keywords>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.2.0" date="2026-06-03">
+      <description>
+        <p>Panorama centering fix, per-monitor transforms, app icon, RPM and AppImage packaging.</p>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-06-02">
+      <description>
+        <p>Initial release for KDE Plasma Wayland.</p>
+      </description>
+    </release>
+  </releases>
+</component>

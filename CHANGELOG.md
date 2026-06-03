@@ -9,7 +9,8 @@
 
 ### Added
 - Project icon (`assets/icon-source.png`, Freedesktop hicolor tree).
-- Packaging: desktop entry, AppImage build script, `restore_panels.sh`.
+- Packaging: Fedora RPM (AppStream), AppImage, desktop entry, `restore_panels.sh`.
+- Release assets: `fugarius-wallpaper-*.rpm`, `Fugarius-Wallpaper-*-x86_64.AppImage`.
 
 ## [0.1.0] — 2026-06-02
 

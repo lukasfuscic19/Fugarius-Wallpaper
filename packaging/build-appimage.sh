@@ -13,8 +13,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="${ROOT}/build"
 APPDIR="${BUILD}/Fugarius-Wallpaper.AppDir"
 
-echo "==> Cleaning ${BUILD}"
-rm -rf "${BUILD}"
+echo "==> Preparing AppDir"
+rm -rf "${APPDIR}"
 mkdir -p "${APPDIR}/usr/share/fugarius-wallpaper"
 
 echo "==> Copying application"
@@ -56,7 +56,9 @@ fi
 
 cp "${ROOT}/packaging/fugarius-wallpaper.desktop" "${APPDIR}/fugarius-wallpaper.desktop"
 sed -i 's|Exec=.*|Exec=AppRun|' "${APPDIR}/fugarius-wallpaper.desktop"
+mkdir -p "${APPDIR}/usr/share/applications" "${APPDIR}/usr/share/metainfo"
 cp "${APPDIR}/fugarius-wallpaper.desktop" "${APPDIR}/usr/share/applications/"
+cp "${ROOT}/packaging/com.fugarius.Wallpaper.appdata.xml" "${APPDIR}/usr/share/metainfo/"
 
 for size in 256 128 64; do
   icon="${ROOT}/assets/icons/hicolor/${size}x${size}/apps/fugarius-wallpaper.png"
@@ -69,7 +71,7 @@ done
 
 if command -v appimagetool >/dev/null 2>&1; then
   echo "==> Building AppImage"
-  appimagetool "${APPDIR}" "${BUILD}/Fugarius-Wallpaper-x86_64.AppImage"
+  ARCH=x86_64 appimagetool "${APPDIR}" "${BUILD}/Fugarius-Wallpaper-x86_64.AppImage"
   echo "Done: ${BUILD}/Fugarius-Wallpaper-x86_64.AppImage"
 else
   echo "AppDir ready: ${APPDIR}"
